@@ -1,0 +1,13 @@
+# Machine Learning
+pandas
+numpy
+scikit-learn
+joblib
+
+# Visualización
+matplotlib
+seaborn
+
+# SDN
+ryu
+psutil
