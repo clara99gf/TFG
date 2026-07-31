@@ -12,40 +12,39 @@ def preprocess_insdn(csv_path: str, top_n_features: int = 20):
     print(f"[+] Cargando dataset desde: {csv_path}")
     df = pd.read_csv(csv_path)
 
-    # 1. Eliminar identificadores rígidos
+    # Eliminar identificadores fijos para evitar sobreajuste
     drop_cols = ['Src IP', 'Dst IP', 'Timestamp', 'Flow ID', 'Src Port', 'Dst Port']
     existing_drop_cols = [c for c in drop_cols if c in df.columns]
     df = df.drop(columns=existing_drop_cols)
     print(f"[+] Columnas eliminadas: {existing_drop_cols}")
 
-    # 2. Limpieza
-    df = df.drop_duplicates()
+    # Limpieza de duplicados y valores infinitos/nulos    df = df.drop_duplicates()
     df = df.replace([np.inf, -np.inf], np.nan)
     df = df.dropna()
     print(f"[+] Dataset limpio: {df.shape[0]} filas")
 
-    # 3. Separar X e y
+    # Separar características (X) y variable objetivo (y)
     target_col = 'Label' if 'Label' in df.columns else df.columns[-1]
     X = df.drop(columns=[target_col])
     y = df[target_col]
 
-    # 4. Codificación de variables categóricas (X)
+    # Codificar variables categóricas de entrada (X)
     encoders = {}
     for col in X.select_dtypes(include=['object', 'category']).columns:
         le = LabelEncoder()
         X[col] = le.fit_transform(X[col])
         encoders[col] = le
 
-    # 5. Codificación de etiquetas (y)
+    # Codificar clases de la etiqueta objetivo (y)
     le_y = LabelEncoder()
     y = le_y.fit_transform(y)
 
-    # 6. Split (ANTES de escalar → evita data leakage)
+    # Division train/test (se hace antes del escalado para mantener test aislado)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42, stratify=y
     )
 
-    # 7. Selección de características (Random Forest)
+    # Seleccionar las N características más importantes con Random Forest
     print("[+] Seleccionando características más importantes...")
     rf = RandomForestClassifier(
         n_estimators=100,
@@ -64,7 +63,7 @@ def preprocess_insdn(csv_path: str, top_n_features: int = 20):
 
     print(f"[+] Top {top_n_features} features seleccionadas")
 
-    # 8. Escalado (solo con train)
+    # Escalado con StandardScaler (fit solo sobre train)
     scaler = StandardScaler()
 
     X_train_scaled = pd.DataFrame(
@@ -96,4 +95,25 @@ def preprocess_insdn(csv_path: str, top_n_features: int = 20):
 if __name__ == "__main__":
     DATA_PATH = os.path.join("data", "InSDN_Normal_and_Attack_Combined.csv")
 
-    X_train, X_test, y_train, y_test, scaler, features, encoders, le_y = preprocess_insdn(DATA_PATH)
+    # Procesar dataset
+    X_train, X_test, y_train, y_test, scaler, selected_features, encoders, le_y = preprocess_insdn(DATA_PATH)
+
+    # Crear carpetas para guardar resultados si no existen
+    os.makedirs("models", exist_ok=True)
+    os.makedirs(os.path.join("data", "processed"), exist_ok=True)
+
+    # Guardar objetos de transformación necesarios para el controlador Ryu  
+    print("[+] Guardando artefactos de producción en 'models/'...")
+    joblib.dump(scaler, os.path.join("models", "scaler.pkl"))
+    joblib.dump(selected_features, os.path.join("models", "selected_features.pkl"))
+    joblib.dump(le_y, os.path.join("models", "le_y.pkl"))
+    joblib.dump(encoders, os.path.join("models", "encoders.pkl"))
+
+    # Guardar conjuntos de datos listos para el entrenamiento   
+    print("[+] Guardando datos procesados en 'data/processed/'...")
+    X_train.to_csv(os.path.join("data", "processed", "X_train.csv"), index=False)
+    X_test.to_csv(os.path.join("data", "processed", "X_test.csv"), index=False)
+    np.save(os.path.join("data", "processed", "y_train.npy"), y_train)
+    np.save(os.path.join("data", "processed", "y_test.npy"), y_test)
+
+    print("[✔] Preprocesamiento completado y guardado en disco con éxito.")
