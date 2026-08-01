@@ -1,14 +1,30 @@
 import pandas as pd
 import numpy as np
 import os
+import sys
 import joblib
+
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 
+# Añadir la raíz del proyecto al path de Python
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def preprocess_insdn(csv_path: str, top_n_features: int = 20):
+# Importar la configuración centralizada
+from config.config import (
+    DATA_RAW_PATH,
+    DATA_PROCESSED_DIR,
+    MODELS_DIR,
+    TOP_N_FEATURES,
+    TEST_SIZE,
+    RANDOM_STATE,
+    N_ESTIMATORS
+)
+
+
+def preprocess_insdn(csv_path: str = DATA_RAW_PATH, top_n_features: int = TOP_N_FEATURES):
 
     print(f"[+] Cargando dataset desde: {csv_path}")
     df = pd.read_csv(csv_path)
@@ -42,15 +58,15 @@ def preprocess_insdn(csv_path: str, top_n_features: int = 20):
 
     # Division train/test (se hace antes del escalado para mantener test aislado)
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y
+        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
     )
 
     # Seleccionar las N características más importantes con Random Forest
     print("[+] Seleccionando características más importantes...")
     rf = RandomForestClassifier(
-        n_estimators=100,
+        n_estimators=N_ESTIMATORS,
         class_weight='balanced',
-        random_state=42
+        random_state=RANDOM_STATE
     )
     rf.fit(X_train, y_train)
 
@@ -94,31 +110,29 @@ def preprocess_insdn(csv_path: str, top_n_features: int = 20):
 
 
 if __name__ == "__main__":
-    DATA_PATH = os.path.join("data", "InSDN_Normal_and_Attack_Combined.csv")
-
     # Procesar dataset
     try:
-        X_train, X_test, y_train, y_test, scaler, selected_features, encoders, le_y = preprocess_insdn(DATA_PATH)
+        X_train, X_test, y_train, y_test, scaler, selected_features, encoders, le_y = preprocess_insdn(DATA_RAW_PATH)
     except Exception as e:
         print(f"[ERROR] Fallo en el preprocesamiento: {e}")
         exit(1)
 
     # Crear carpetas para guardar resultados si no existen
-    os.makedirs("models", exist_ok=True)
-    os.makedirs(os.path.join("data", "processed"), exist_ok=True)
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    os.makedirs(os.path.join(DATA_PROCESSED_DIR), exist_ok=True)
 
     # Guardar objetos de transformación necesarios para el controlador Ryu  
     print("[+] Guardando artefactos de producción en 'models/'...")
-    joblib.dump(scaler, os.path.join("models", "scaler.pkl"))
-    joblib.dump(selected_features, os.path.join("models", "selected_features.pkl"))
-    joblib.dump(le_y, os.path.join("models", "le_y.pkl"))
-    joblib.dump(encoders, os.path.join("models", "encoders.pkl"))
+    joblib.dump(scaler, os.path.join(MODELS_DIR, "scaler.pkl"))
+    joblib.dump(selected_features, os.path.join(MODELS_DIR, "selected_features.pkl"))
+    joblib.dump(le_y, os.path.join(MODELS_DIR, "le_y.pkl"))
+    joblib.dump(encoders, os.path.join(MODELS_DIR, "encoders.pkl"))
 
     # Guardar conjuntos de datos listos para el entrenamiento   
     print("[+] Guardando datos procesados en 'data/processed/'...")
-    X_train.to_csv(os.path.join("data", "processed", "X_train.csv"), index=False)
-    X_test.to_csv(os.path.join("data", "processed", "X_test.csv"), index=False)
-    np.save(os.path.join("data", "processed", "y_train.npy"), y_train)
-    np.save(os.path.join("data", "processed", "y_test.npy"), y_test)
+    X_train.to_csv(os.path.join(DATA_PROCESSED_DIR, "X_train.csv"), index=False)
+    X_test.to_csv(os.path.join(DATA_PROCESSED_DIR, "X_test.csv"), index=False)
+    np.save(os.path.join(DATA_PROCESSED_DIR, "y_train.npy"), y_train)
+    np.save(os.path.join(DATA_PROCESSED_DIR, "y_test.npy"), y_test)
 
     print("[✔] Preprocesamiento completado y guardado en disco con éxito")
