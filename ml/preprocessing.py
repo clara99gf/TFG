@@ -35,7 +35,8 @@ def preprocess_insdn(csv_path: str = DATA_RAW_PATH, top_n_features: int = TOP_N_
     df = df.drop(columns=existing_drop_cols)
     print(f"[+] Columnas eliminadas: {existing_drop_cols}")
 
-    # Limpieza de duplicados y valores infinitos/nulos    df = df.drop_duplicates()
+    # Limpieza de duplicados y valores infinitos/nulos
+    df = df.drop_duplicates()
     df = df.replace([np.inf, -np.inf], np.nan)
     df = df.dropna()
     print(f"[+] Dataset limpio: {df.shape[0]} filas")
@@ -112,7 +113,7 @@ def preprocess_insdn(csv_path: str = DATA_RAW_PATH, top_n_features: int = TOP_N_
 if __name__ == "__main__":
     # Procesar dataset
     try:
-        X_train, X_test, y_train, y_test, scaler, selected_features, encoders, le_y = preprocess_insdn(DATA_RAW_PATH)
+        X_train_scaled, X_test_scaled, y_train, y_test, scaler, selected_features, encoders, le_y = preprocess_insdn(DATA_RAW_PATH)
     except Exception as e:
         print(f"[ERROR] Fallo en el preprocesamiento: {e}")
         exit(1)
@@ -130,8 +131,8 @@ if __name__ == "__main__":
 
     # Guardar conjuntos de datos listos para el entrenamiento   
     print("[+] Guardando datos procesados en 'data/processed/'...")
-    X_train.to_csv(os.path.join(DATA_PROCESSED_DIR, "X_train.csv"), index=False)
-    X_test.to_csv(os.path.join(DATA_PROCESSED_DIR, "X_test.csv"), index=False)
+    X_train_scaled.to_csv(os.path.join(DATA_PROCESSED_DIR, "X_train.csv"), index=False)
+    X_test_scaled.to_csv(os.path.join(DATA_PROCESSED_DIR, "X_test.csv"), index=False)
     np.save(os.path.join(DATA_PROCESSED_DIR, "y_train.npy"), y_train)
     np.save(os.path.join(DATA_PROCESSED_DIR, "y_test.npy"), y_test)
 
