@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import joblib
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
@@ -96,7 +97,11 @@ if __name__ == "__main__":
     DATA_PATH = os.path.join("data", "InSDN_Normal_and_Attack_Combined.csv")
 
     # Procesar dataset
-    X_train, X_test, y_train, y_test, scaler, selected_features, encoders, le_y = preprocess_insdn(DATA_PATH)
+    try:
+        X_train, X_test, y_train, y_test, scaler, selected_features, encoders, le_y = preprocess_insdn(DATA_PATH)
+    except Exception as e:
+        print(f"[ERROR] Fallo en el preprocesamiento: {e}")
+        exit(1)
 
     # Crear carpetas para guardar resultados si no existen
     os.makedirs("models", exist_ok=True)
@@ -116,4 +121,4 @@ if __name__ == "__main__":
     np.save(os.path.join("data", "processed", "y_train.npy"), y_train)
     np.save(os.path.join("data", "processed", "y_test.npy"), y_test)
 
-    print("[✔] Preprocesamiento completado y guardado en disco con éxito.")
+    print("[✔] Preprocesamiento completado y guardado en disco con éxito")
