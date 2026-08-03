@@ -30,7 +30,7 @@ def preprocess_insdn(csv_path: str = DATA_RAW_PATH, top_n_features: int = TOP_N_
     df = pd.read_csv(csv_path)
 
     # Eliminar identificadores fijos para evitar sobreajuste
-    drop_cols = ['Src IP', 'Dst IP', 'Timestamp', 'Flow ID', 'Src Port', 'Dst Port']
+    drop_cols = ['Flow ID', 'Src IP', 'Src Port', 'Dst IP', 'Dst Port', 'Timestamp']
     existing_drop_cols = [c for c in drop_cols if c in df.columns]
     df = df.drop(columns=existing_drop_cols)
     print(f"[+] Columnas eliminadas: {existing_drop_cols}")
@@ -39,7 +39,7 @@ def preprocess_insdn(csv_path: str = DATA_RAW_PATH, top_n_features: int = TOP_N_
     df = df.drop_duplicates()
     df = df.replace([np.inf, -np.inf], np.nan)
     df = df.dropna()
-    print(f"[+] Dataset limpio: {df.shape[0]} filas")
+    print(f"[+] Dataset limpio: {df.shape[0]} filas x {df.shape[1]} columnas")
 
     # Separar características (X) y variable objetivo (y)
     target_col = 'Label' if 'Label' in df.columns else df.columns[-1]
@@ -57,13 +57,17 @@ def preprocess_insdn(csv_path: str = DATA_RAW_PATH, top_n_features: int = TOP_N_
     le_y = LabelEncoder()
     y = le_y.fit_transform(y)
 
+    print("\n[+] Clases detectadas y su codificación:")
+    for idx, class_name in enumerate(le_y.classes_):
+        print(f"    - [{idx}] {class_name}")
+
     # Division train/test (se hace antes del escalado para mantener test aislado)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
     )
 
     # Seleccionar las N características más importantes con Random Forest
-    print("[+] Seleccionando características más importantes...")
+    print("\n[+] Seleccionando características más importantes...")
     rf = RandomForestClassifier(
         n_estimators=N_ESTIMATORS,
         class_weight='balanced',
@@ -79,7 +83,10 @@ def preprocess_insdn(csv_path: str = DATA_RAW_PATH, top_n_features: int = TOP_N_
     X_train = X_train[selected_features]
     X_test = X_test[selected_features]
 
-    print(f"[+] Top {top_n_features} features seleccionadas")
+    print(f"[★] Top {top_n_features} características seleccionadas:")
+    for i, col in enumerate(selected_features, 1):
+        score = importances[indices[i-1]]
+        print(f"    {i:2d}. {col:<30} (Importancia: {score:.4f})")
 
     # Escalado con StandardScaler (fit solo sobre train)
     scaler = StandardScaler()
@@ -94,9 +101,10 @@ def preprocess_insdn(csv_path: str = DATA_RAW_PATH, top_n_features: int = TOP_N_
         columns=selected_features
     )
 
-    print("[+] Datos procesados correctamente:")
-    print(f"    - Train: {X_train_scaled.shape}")
-    print(f"    - Test:  {X_test_scaled.shape}")
+    print("\n[+] Resumen del procesado de datos:")
+    print(f"    - Conjunto Train: {X_train_scaled.shape[0]} muestras")
+    print(f"    - Conjunto Test:  {X_test_scaled.shape[0]} muestras")
+    print(f"    - Nº Características: {X_train_scaled.shape[1]}")
 
     return (
         X_train_scaled,
@@ -123,7 +131,7 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(DATA_PROCESSED_DIR), exist_ok=True)
 
     # Guardar objetos de transformación necesarios para el controlador Ryu  
-    print("[+] Guardando artefactos de producción en 'models/'...")
+    print("\n[+] Guardando artefactos de producción en 'models/'...")
     joblib.dump(scaler, os.path.join(MODELS_DIR, "scaler.pkl"))
     joblib.dump(selected_features, os.path.join(MODELS_DIR, "selected_features.pkl"))
     joblib.dump(le_y, os.path.join(MODELS_DIR, "le_y.pkl"))
