@@ -1,29 +1,30 @@
-import time
 import os
 import sys
-import numpy as np
+import time
+from typing import Dict, Any
+
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 
-# Añadir la raíz del proyecto al path de Python
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from utils import load_processed_data, save_model
 from config.config import (
     RESULTS_DIR,
     RANDOM_STATE,
     N_ESTIMATORS,
     MAX_ITER_LOGREG
 )
+from ml.utils import load_processed_data, save_model
 
 
-def train_and_compare_models():
-    print("[+] Cargando datos procesados desde 'data/processed/'...")
-    X_train, X_test, y_train, y_test = load_processed_data()
+def train_all_models() -> Dict[str, Any]:
+    """
+    Entrena los 3 modelos, mide el tiempo de entrenamiento y guarda
+    los objetos entrenados en la carpeta models/.
+    """
+    print("[+] Cargando datos de entrenamiento desde 'data/processed/'...")
+    X_train, _, y_train, _ = load_processed_data()
 
-    # Definir los tres algoritmos a comparar
     models = {
         "Logistic_Regression": LogisticRegression(
             max_iter=MAX_ITER_LOGREG,
@@ -39,52 +40,43 @@ def train_and_compare_models():
         )
     }
 
-    results = []
-    best_score = 0.0
-    best_model_name = ""
-    best_model_obj = None
+    train_results = []
+    trained_models = {}
 
-    print("\n[+] Entrenando modelos y evaluando tiempos de cómputo...")
+    print("\n[+] Entrenando modelos y midiendo tiempo de entrenamiento...")
     for name, model in models.items():
         # Medir tiempo de entrenamiento
         start_train = time.time()
         model.fit(X_train, y_train)
         train_time = time.time() - start_train
 
-        # Medir tiempo de inferencia sobre el conjunto de prueba
-        start_inf = time.time()
-        preds = model.predict(X_test)
-        inf_time = time.time() - start_inf
+        print(f"    - {name:<20}: Train = {train_time:.4f}s")
 
-        # Calcular exactitud básica
-        accuracy = np.mean(preds == y_test)
-
-        print(f"    - {name}: Train = {train_time:.4f}s | Inferencia = {inf_time:.4f}s | Accuracy = {accuracy:.4f}")
-
-        results.append({
+        train_results.append({
             "Model": name,
-            "Train_Time_Sec": train_time,
-            "Inference_Time_Sec": inf_time,
-            "Accuracy": accuracy
+            "Train_Time_Sec": train_time
         })
 
-        # Guardar la referencia del modelo con mejor rendimiento
-        if accuracy > best_score:
-            best_score = accuracy
-            best_model_name = name
-            best_model_obj = model
+        # Guardar modelo individualmente
+        model_filename = f"{name.lower()}.pkl"
+        save_model(model, model_filename)
+        trained_models[name] = model
 
-    # Guardar métricas de tiempo en results/metrics/
+    # Guardar tabla de tiempo de entrenamiento
     metrics_dir = os.path.join(RESULTS_DIR, "metrics")
     os.makedirs(metrics_dir, exist_ok=True)
-    df_results = pd.DataFrame(results)
-    df_results.to_csv(os.path.join(metrics_dir, "computational_cost.csv"), index=False)
-    print("\n[+] Métricas guardadas en 'results/metrics/computational_cost.csv'")
+    train_df = pd.DataFrame(train_results)
+    train_path = os.path.join(metrics_dir, "training_cost.csv")
+    train_df.to_csv(train_path, index=False)
 
-    # Exportar el modelo ganador como el oficial para Ryu
-    print(f"[★] Modelo ganador: {best_model_name} (Accuracy: {best_score:.4f})")
-    save_model(best_model_obj, "modelo_final.pkl")
+    print(f"\n[+] Tiempos de entrenamiento guardados en: {train_path}")
+    return trained_models
 
 
 if __name__ == "__main__":
-    train_and_compare_models()
+    try:
+        train_all_models()
+        print("[✔] Todos los modelos han sido entrenados y guardados con éxito")
+    except Exception as e:
+        print(f"[ERROR] Fallo en el entrenamiento: {e}")
+        sys.exit(1)
