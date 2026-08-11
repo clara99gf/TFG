@@ -10,4 +10,6 @@ seaborn
 
 # SDN
 ryu
+eventlet==0.33.3
+dnspython==2.2.0
 psutil
