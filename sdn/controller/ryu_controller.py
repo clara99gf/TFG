@@ -2,7 +2,7 @@
 """
 sdn/controller/ryu_controller.py
 Controlador Ryu con inferencia ML en tiempo real, mitigación dinámica
-y recolección de métricas para el TFG.
+y recolección de métricas.
 """
 
 import os
