@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 sdn/metrics_collector.py
-Módulo para el registro persistente de métricas de telemetría e inferencia ML.
+Módulo para el registro persistente de métricas de telemetría, rendimiento e inferencia ML.
 """
 
 import os
@@ -15,11 +15,9 @@ class MetricsCollector:
         self.filepath = os.path.join(self.output_dir, filename)
         self.lock = Lock()
         
-        # Crear directorio si no existe
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir, exist_ok=True)
             
-        # Inicializar CSV con encabezados si no existe
         if not os.path.exists(self.filepath):
             with open(self.filepath, mode='w', newline='') as f:
                 writer = csv.writer(f)
@@ -27,16 +25,20 @@ class MetricsCollector:
                     'timestamp', 
                     'dpid', 
                     'in_port', 
-                    'eth_src', 
+                    'eth_src',
+                    'dst_port',
                     'pkt_rate', 
                     'byte_rate', 
-                    'inference_time_ms', 
+                    'inference_time_ms',
+                    'control_plane_latency_ms',
+                    'cpu_percent',
                     'predicted_label', 
                     'action_taken'
                 ])
 
-    def log_event(self, dpid, in_port, eth_src, pkt_rate, byte_rate, inference_time_ms, predicted_label, action_taken):
-        """Registra un evento de evaluación e inferencia de forma segura entre hilos."""
+    def log_event(self, dpid, in_port, eth_src, dst_port, pkt_rate, byte_rate, 
+                  inference_time_ms, control_plane_latency_ms, cpu_percent, 
+                  predicted_label, action_taken):
         with self.lock:
             with open(self.filepath, mode='a', newline='') as f:
                 writer = csv.writer(f)
@@ -45,9 +47,12 @@ class MetricsCollector:
                     dpid,
                     in_port,
                     eth_src,
+                    dst_port,
                     round(pkt_rate, 2),
                     round(byte_rate, 2),
                     round(inference_time_ms, 3),
+                    round(control_plane_latency_ms, 3),
+                    round(cpu_percent, 2),
                     predicted_label,
                     action_taken
                 ])

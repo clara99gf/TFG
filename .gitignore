@@ -7,12 +7,12 @@ __pycache__/
 *.pyd
 
 # =========================
-# DATASETS (pesados)
+# DATASETS 
 # =========================
 data/
 
 # =========================
-# MODELOS (se regeneran)
+# MODELOS
 # =========================
 models/
 *.pkl

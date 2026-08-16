@@ -9,7 +9,7 @@ echo "============================================================"
 echo " [1/5] Instalando herramientas del sistema (APT)..."
 echo "============================================================"
 sudo apt update
-sudo apt install -y mininet openvswitch-switch iperf3 nmap hping3 net-tools python3-venv python3-pip
+sudo apt install -y mininet openvswitch-switch iperf3 nmap hping3 python3 python3-venv python3-pip
 
 echo ""
 echo "============================================================"
