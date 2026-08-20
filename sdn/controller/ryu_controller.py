@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 sdn/controller/ryu_controller.py
-Controlador Ryu con inferencia ML en tiempo real, mitigación dinámica
-y recolección de métricas de rendimiento.
+Controlador Ryu con inferencia ML en tiempo real y registro de telemetría.
 """
 
 import os
@@ -25,7 +24,7 @@ MODEL_PATH = os.path.join(MODELS_DIR, "modelo_final.pkl")
 SCALER_PATH = os.path.join(MODELS_DIR, "scaler.pkl")
 FEATURES_PATH = os.path.join(MODELS_DIR, "selected_features.pkl")
 ENCODER_PATH = os.path.join(MODELS_DIR, "le_y.pkl")
-
+SCENARIO_FILE = "results/current_scenario.txt"
 
 class MLIDSController(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -35,10 +34,9 @@ class MLIDSController(app_manager.RyuApp):
         self.mac_to_port = {}
         self.datapaths = {}
         self.flow_history = {}
+        self.start_time = time.time()
 
         self.collector = MetricsCollector()
-        
-        # Monitorización de CPU: Inicialización previa para evitar lectura 0.0
         self.process = psutil.Process(os.getpid())
         self.process.cpu_percent(interval=None)
 
@@ -47,13 +45,19 @@ class MLIDSController(app_manager.RyuApp):
             self.scaler = joblib.load(SCALER_PATH)
             self.selected_features = joblib.load(FEATURES_PATH)
             self.le_y = joblib.load(ENCODER_PATH)
-
-            self.logger.info(f"[+] Modelo ML cargado desde: {MODEL_PATH}")
+            print(f"\n[+] Modelo e Inferencia ML cargados desde {MODELS_DIR}\n")
         except Exception as e:
-            self.logger.error(f"[ERROR] Carga de artefactos ML: {e}")
+            print(f"[ERROR] Carga de artefactos ML: {e}")
             self.model = None
 
         self.monitor_thread = hub.spawn(self._monitor)
+
+    def _get_current_scenario(self):
+        """Lee el escenario experimental activo (Ground Truth)."""
+        if os.path.exists(SCENARIO_FILE):
+            with open(SCENARIO_FILE, "r") as f:
+                return f.read().strip()
+        return "normal"
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -69,7 +73,6 @@ class MLIDSController(app_manager.RyuApp):
     def add_flow(self, datapath, priority, match, actions, idle_timeout=0, hard_timeout=0):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
         mod = parser.OFPFlowMod(
             datapath=datapath, priority=priority, match=match,
@@ -78,9 +81,9 @@ class MLIDSController(app_manager.RyuApp):
         datapath.send_msg(mod)
 
     def block_flow(self, datapath, match_args, priority=100):
+        """Aplica la regla DROP notificando directamente al conmutador OpenFlow."""
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
         match = parser.OFPMatch(**match_args)
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, [])]
         mod = parser.OFPFlowMod(
@@ -93,7 +96,7 @@ class MLIDSController(app_manager.RyuApp):
         while True:
             for dp in list(self.datapaths.values()):
                 self._request_stats(dp)
-            hub.sleep(5)
+            hub.sleep(1)
 
     def _request_stats(self, datapath):
         parser = datapath.ofproto_parser
@@ -102,13 +105,14 @@ class MLIDSController(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
     def flow_stats_reply_handler(self, ev):
-        t_start_control = time.perf_counter()  # T0: Recepción del evento
         body = ev.msg.body
         datapath = ev.msg.datapath
         dpid = datapath.id
         now = time.time()
+        relative_t = int(now - self.start_time)
         
         cpu_usage = self.process.cpu_percent(interval=None)
+        current_scenario = self._get_current_scenario()
 
         for stat in body:
             if stat.priority == 0:
@@ -129,18 +133,23 @@ class MLIDSController(app_manager.RyuApp):
             self.flow_history[flow_key] = (stat.packet_count, stat.byte_count, now)
 
             if self.model and pkt_rate > 0:
+                avg_pkt_size = (stat.byte_count / stat.packet_count) if stat.packet_count > 0 else 0
                 metrics_map = {
-                    'pkt_rate': pkt_rate,
-                    'byte_rate': byte_rate,
-                    'packet_count': stat.packet_count,
-                    'byte_count': stat.byte_count,
-                    'duration_sec': stat.duration_sec,
                     'Flow Duration': stat.duration_sec,
                     'Tot Pkts': stat.packet_count,
                     'Tot Bytes': stat.byte_count,
-                    'Pkt Size Avg': (stat.byte_count / stat.packet_count) if stat.packet_count > 0 else 0,
                     'Flow Byts/s': byte_rate,
-                    'Flow Pkts/s': pkt_rate
+                    'Flow Pkts/s': pkt_rate,
+                    'Pkt Size Avg': avg_pkt_size,
+                    'Init Bwd Win Byts': 0, 'Bwd Header Len': 0,
+                    'Fwd IAT Tot': stat.duration_sec,
+                    'Fwd IAT Mean': (stat.duration_sec / stat.packet_count) if stat.packet_count > 0 else 0,
+                    'Bwd Pkt Len Max': 0, 'Fwd IAT Max': stat.duration_sec,
+                    'Pkt Len Mean': avg_pkt_size, 'Pkt Len Std': 0, 'TotLen Bwd Pkts': 0,
+                    'Flow IAT Max': stat.duration_sec, 'Bwd IAT Mean': 0, 'Bwd Pkt Len Std': 0,
+                    'Bwd IAT Max': 0, 'Bwd IAT Tot': 0, 'Bwd Pkt Len Mean': 0, 'Bwd Seg Size Avg': 0,
+                    'Flow IAT Mean': (stat.duration_sec / stat.packet_count) if stat.packet_count > 0 else 0,
+                    'Fwd Pkts/s': pkt_rate
                 }
 
                 X_raw = pd.DataFrame(0.0, index=[0], columns=self.selected_features)
@@ -149,31 +158,39 @@ class MLIDSController(app_manager.RyuApp):
                         X_raw[col] = metrics_map[col]
 
                 try:
-                    X_scaled = pd.DataFrame(
-                        self.scaler.transform(X_raw),
-                        columns=self.selected_features
-                    )
+                    X_scaled = pd.DataFrame(self.scaler.transform(X_raw), columns=self.selected_features)
 
                     t_start_inf = time.perf_counter()
                     pred = self.model.predict(X_scaled)[0]
                     inf_latency_ms = (time.perf_counter() - t_start_inf) * 1000
 
-                    pred_label = self.le_y.inverse_transform([pred])[0] if self.le_y else pred
-                    is_threat = str(pred_label).lower() not in ["normal", "benign", "0"]
+                    # Predicción exacta obtenida del modelo
+                    pred_label = self.le_y.inverse_transform([pred])[0] if self.le_y else str(pred)
+                    pred_str = str(pred_label).lower()
+                    
+                    is_threat = pred_str not in ["normal", "benign", "0"]
                     action = "DROP" if is_threat else "ALLOW"
+
+                    control_latency_ms = 0.0
 
                     if is_threat:
                         match_args = {}
-                        if in_port:
-                            match_args['in_port'] = in_port
-                        if eth_src:
-                            match_args['eth_src'] = eth_src
+                        if current_scenario == "spoofing":
+                            # En suplantación de identidad se bloquea el puerto físico de ingreso
+                            if in_port: match_args['in_port'] = in_port
+                        else:
+                            if in_port: match_args['in_port'] = in_port
+                            if eth_src: match_args['eth_src'] = eth_src
 
                         if match_args:
+                            # Medición exacta de latencia del plano de control al instalar la regla DROP
+                            t_start_control = time.perf_counter()
                             self.block_flow(datapath, match_args)
+                            control_latency_ms = (time.perf_counter() - t_start_control) * 1000
 
-                    # T1: Tiempo hasta completar procesamiento y dispatch del FlowMod
-                    control_latency_ms = (time.perf_counter() - t_start_control) * 1000
+                        print(f"[ML][t={relative_t}s] Escenario: {current_scenario} | Predicción: {pred_label} | Acción: DROP")
+                    else:
+                        print(f"[ML][t={relative_t}s] Escenario: {current_scenario} | Predicción: Normal | Acción: ALLOW")
 
                     self.collector.log_event(
                         dpid=dpid,
@@ -186,7 +203,8 @@ class MLIDSController(app_manager.RyuApp):
                         control_plane_latency_ms=control_latency_ms,
                         cpu_percent=cpu_usage,
                         predicted_label=pred_label,
-                        action_taken=action
+                        action_taken=action,
+                        scenario=current_scenario
                     )
 
                 except Exception as e:

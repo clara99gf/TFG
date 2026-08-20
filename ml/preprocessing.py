@@ -39,7 +39,9 @@ def preprocess_insdn(
     Realiza el preprocesamiento completo del dataset InSDN.
 
     Incluye:
-    - Limpieza de datos 
+    - Carga del dataset original
+    - Construcción de características sintéticas para concordancia con OpenFlow
+    - Limpieza de datos y descarte de columnas no reproducibles
     - Codificación de variables categóricas
     - División train/test de forma estratificada
     - Selección de características más importantes con Random Forest
@@ -55,7 +57,22 @@ def preprocess_insdn(
     print(f"[+] Cargando dataset desde: {csv_path}")
     df = pd.read_csv(csv_path)
 
-    # Eliminar identificadores fijos
+    # -------------------------------------------------------------------------
+    # Construcción de características compatibles con OpenFlow/Ryu
+    # -------------------------------------------------------------------------
+    df["packet_count"] = (
+        df["Tot Fwd Pkts"] + df["Tot Bwd Pkts"]
+    )
+
+    df["byte_count"] = (
+        df["TotLen Fwd Pkts"] + df["TotLen Bwd Pkts"]
+    )
+
+    print("[+] Características compatibles con Ryu construidas:")
+    print("    - packet_count = Tot Fwd Pkts + Tot Bwd Pkts")
+    print("    - byte_count   = TotLen Fwd Pkts + TotLen Bwd Pkts")
+
+    # Eliminar identificadores fijos, componentes sustituidos por los contadores globales y features no reproducibles mediante OFPFlowStatsReply
     existing_drop_cols = [c for c in DROP_COLS if c in df.columns]
     df = df.drop(columns=existing_drop_cols)
     print(f"[+] Columnas eliminadas: {existing_drop_cols}")
