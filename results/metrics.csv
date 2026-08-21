@@ -1,0 +1,1 @@
+timestamp,dpid,in_port,eth_src,dst_port,pkt_rate,byte_rate,inference_time_ms,mitigation_latency_ms,cpu_percent,predicted_label,action_taken,scenario

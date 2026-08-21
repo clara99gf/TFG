@@ -29,7 +29,7 @@ echo ""
 echo "============================================================"
 echo " [3/5] Instalando dependencias de Python (requirements.txt)..."
 echo "============================================================"
-pip install --upgrade pip
+pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
 echo ""

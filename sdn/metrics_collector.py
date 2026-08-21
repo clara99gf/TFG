@@ -26,7 +26,7 @@ class MetricsCollector:
                 "pkt_rate",
                 "byte_rate",
                 "inference_time_ms",
-                "control_plane_latency_ms",
+                "mitigation_latency_ms",
                 "cpu_percent",
                 "predicted_label",
                 "action_taken",
@@ -37,7 +37,7 @@ class MetricsCollector:
                 writer.writerow(headers)
 
     def log_event(self, dpid, in_port, eth_src, dst_port, pkt_rate, byte_rate,
-                  inference_time_ms, control_plane_latency_ms, cpu_percent,
+                  inference_time_ms, mitigation_latency_ms, cpu_percent,
                   predicted_label, action_taken, scenario):
         """Registra un evento de telemetría en tiempo real."""
         self._init_csv()
@@ -51,7 +51,7 @@ class MetricsCollector:
             round(pkt_rate, 2),
             round(byte_rate, 2),
             round(inference_time_ms, 3),
-            round(control_plane_latency_ms, 3),
+            round(mitigation_latency_ms, 3),
             round(cpu_percent, 2),
             predicted_label,
             action_taken,

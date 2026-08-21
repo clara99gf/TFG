@@ -1,4 +1,4 @@
 Model,Train_Time_Sec
-Logistic_Regression,4.4369215965271
-Decision_Tree,0.22571825981140137
-Random_Forest,3.9308621883392334
+Logistic_Regression,3.208940029144287
+Decision_Tree,0.22769737243652344
+Random_Forest,4.07740330696106

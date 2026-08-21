@@ -10,7 +10,7 @@ from sklearn.ensemble import RandomForestClassifier
 from config.config import (
     DATA_RAW_PATH,
     DROP_COLS,
-    TOP_N_FEATURES,
+    N_FEATURES,
     TEST_SIZE,
     RANDOM_STATE,
     N_ESTIMATORS
@@ -33,7 +33,7 @@ class PreprocessResult:
 
 def preprocess_insdn(
     csv_path: str = DATA_RAW_PATH, 
-    top_n_features: int = TOP_N_FEATURES
+    n_features: int = N_FEATURES
 ) -> PreprocessResult:
     """
     Realiza el preprocesamiento completo del dataset InSDN.
@@ -106,8 +106,8 @@ def preprocess_insdn(
         X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
     )
 
-    # Selección de características con Random Forest
-    print("\n[+] Seleccionando características más importantes...")
+    # Ranking de importancia de características con Random Forest
+    print("\n[+] Calculando importancia de las características...")
     rf_selector = RandomForestClassifier(
         n_estimators=N_ESTIMATORS,
         class_weight='balanced',
@@ -117,12 +117,12 @@ def preprocess_insdn(
 
     importances = rf_selector.feature_importances_
     indices = np.argsort(importances)[::-1]
-    selected_features = list(X_train.columns[indices[:top_n_features]])
+    selected_features = list(X_train.columns[indices[:n_features]])
 
     X_train = X_train[selected_features]
     X_test = X_test[selected_features]
 
-    print(f"[★] Top {top_n_features} características seleccionadas:")
+    print(f"[+] Características ordenadas por importancia:")
     for i, col in enumerate(selected_features, 1):
         score = importances[indices[i-1]]
         print(f"    {i:2d}. {col:<30} (Importancia: {score:.4f})")

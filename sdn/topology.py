@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
 sdn/topology.py
-Topología personalizada para Mininet con OpenFlow 1.3.
+Topología personalizada para Mininet con OpenFlow 1.3 (Ejecución en segundo plano).
 """
 
+import os
+import time
+import json
 from mininet.net import Mininet
 from mininet.node import RemoteController, OVSKernelSwitch
-from mininet.cli import CLI
 from mininet.log import setLogLevel, info
+
+PIDS_FILE = "/tmp/mininet_pids.json"
 
 def create_topology():
     net = Mininet(
@@ -33,14 +37,12 @@ def create_topology():
     h5 = net.addHost('h5', ip='10.0.0.5/24', mac='00:00:00:00:00:05')
 
     info('[+] Creando Enlaces...\n')
-    # Enlaces Switch-Host
     net.addLink(h1, s1)
     net.addLink(h2, s1)
     net.addLink(h3, s2)
     net.addLink(h4, s2)
     net.addLink(h5, s3)
 
-    # Enlaces Inter-Switch
     net.addLink(s1, s2)
     net.addLink(s2, s3)
 
@@ -51,11 +53,23 @@ def create_topology():
     s2.start([c0])
     s3.start([c0])
 
-    info('[+] Topología activa. Se puede probar la conectividad con "pingall"\n')
-    CLI(net)
+    # Guardar mapa de PIDs para comunicación mediante mnexec desde main_runner.py
+    pids = {host.name: host.pid for host in net.hosts}
+    with open(PIDS_FILE, "w") as f:
+        json.dump(pids, f)
 
-    info('[+] Deteniendo Red...\n')
-    net.stop()
+    info('[+] Topología activa y mapa de PIDs generado en /tmp/mininet_pids.json...\n')
+    try:
+        while True:
+            time.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        info('[+] Deteniendo Red...\n')
+        if os.path.exists(PIDS_FILE):
+            try:
+                os.remove(PIDS_FILE)
+            except Exception:
+                pass
+        net.stop()
 
 if __name__ == '__main__':
     setLogLevel('info')

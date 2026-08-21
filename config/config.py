@@ -94,10 +94,11 @@ DROP_COLS = [
     "Idle Std",
     "Idle Max",
     "Idle Min",
+    "Protocol",
 ]
 
 # Hiperparámetros generales
-TOP_N_FEATURES = 7
+N_FEATURES = 6
 TEST_SIZE = 0.20
 RANDOM_STATE = 42
 
