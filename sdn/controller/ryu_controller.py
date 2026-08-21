@@ -183,16 +183,45 @@ class MLIDSController(app_manager.RyuApp):
                     mitigation_latency_ms = 0.0
 
                     if is_threat:
-                        match_args = {}
-                        if current_scenario == "spoofing":
-                            if in_port: match_args['in_port'] = in_port
-                        else:
-                            if in_port: match_args['in_port'] = in_port
-                            if eth_src: match_args['eth_src'] = eth_src
+                        if current_scenario == "ddos":
+                            match_args = {
+                                'in_port': in_port,
+                                'eth_src': eth_src
+                            }
 
+                        elif current_scenario == "scanning":
+                            # Bloqueo granular TCP si existe dst_port válido; fallback a origen si no
+                            if dst_port and dst_port > 0:
+                                match_args = {
+                                    'in_port': in_port,
+                                    'eth_src': eth_src,
+                                    'eth_type': 0x0800,  # IPv4
+                                    'ip_proto': 6,       # TCP
+                                    'tcp_dst': dst_port
+                                }
+                            else:
+                                match_args = {
+                                    'in_port': in_port,
+                                    'eth_src': eth_src
+                                }
+
+                        elif current_scenario == "spoofing":
+                            # Corta la interfaz física para mitigar el IP/MAC spoofing
+                            match_args = {
+                                'in_port': in_port
+                            }
+
+                        else:
+                            # Comportamiento general por defecto
+                            match_args = {
+                                'in_port': in_port,
+                                'eth_src': eth_src
+                            }
+
+                        # Aplicar bloqueo en el switch si hay argumentos de match
                         if match_args:
                             self.block_flow(datapath, match_args)
-                            # Latencia de mitigación individual: desde el inicio de evaluación hasta el envío del OFPFlowMod DROP
+                            # Latencia de mitigación: desde inicio de evaluación hasta enviar OFPFlowMod DROP
                             mitigation_latency_ms = (time.perf_counter() - t_start_flow_eval) * 1000
 
                     if t_bat_start is not None:

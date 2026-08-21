@@ -105,7 +105,7 @@ def run_cmd_in_netns(host="h2", cmd=""):
 def start_mininet_topology():
     print("[+] Desplegando Topología Mininet...")
     topology_path = os.path.join(BASE_DIR, "sdn", "topology.py")
-    cmd = [sys.executable, topology_path]
+    cmd = ["/usr/bin/python3", topology_path]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=BASE_DIR)
     
     print("[+] Esperando a que la infraestructura OpenFlow responda...")
