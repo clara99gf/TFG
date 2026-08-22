@@ -19,9 +19,11 @@ plt.rcParams.update({
     'figure.titlesize': 13
 })
 
-METRICS_PATH = "results/metrics.csv"
-TIMING_PATH = "results/timing.csv"
-OUTPUT_DIR = "results/figures"
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+METRICS_PATH = os.path.join(BASE_DIR, "results", "metrics.csv")
+TIMING_PATH = os.path.join(BASE_DIR, "results", "timing.csv")
+OUTPUT_DIR = os.path.join(BASE_DIR, "results", "figures")
 
 def load_data():
     if not os.path.exists(METRICS_PATH):

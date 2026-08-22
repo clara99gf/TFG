@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 sdn/topology.py
-Topología personalizada para Mininet con OpenFlow 1.3 (Ejecución en segundo plano).
+Topología personalizada para Mininet con OpenFlow 1.3 (Ejecución automatizada).
 """
 
 import os
@@ -12,6 +12,7 @@ from mininet.node import RemoteController, OVSKernelSwitch
 from mininet.log import setLogLevel, info
 
 PIDS_FILE = "/tmp/mininet_pids.json"
+
 
 def create_topology():
     net = Mininet(
@@ -53,12 +54,20 @@ def create_topology():
     s2.start([c0])
     s3.start([c0])
 
-    # Guardar mapa de PIDs para comunicación mediante mnexec desde main_runner.py
+    # Esperar 2 segundos a que Ryu reconozca los switches
+    time.sleep(2)
+
+    # Poblar tablas ARP y MAC (NO se graba en CSV porque no hay flag de grabación activo)
+    info('[+] Poblando tablas ARP y registros MAC en Ryu (pingAll)...\n')
+    net.pingAll()
+
+    # Guardar mapa de PIDs
     pids = {host.name: host.pid for host in net.hosts}
     with open(PIDS_FILE, "w") as f:
         json.dump(pids, f)
 
     info('[+] Topología activa y mapa de PIDs generado en /tmp/mininet_pids.json...\n')
+
     try:
         while True:
             time.sleep(1)
@@ -70,6 +79,7 @@ def create_topology():
             except Exception:
                 pass
         net.stop()
+
 
 if __name__ == '__main__':
     setLogLevel('info')
